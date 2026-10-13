@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kusursuz Güvenli Sohbet (0 Sunucu - Işık Hızında)</title>
+    <title>Güvenli Anlık Sohbet (İnternet Destekli & E2EE)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 10px; }
@@ -34,7 +34,7 @@
 <body>
 
 <div class="container" id="login-screen">
-    <h2>Güvenli Giriş (0 Sunucu)</h2>
+    <h2>Güvenli Giriş (Cihazlar Arası)</h2>
     <div class="input-group">
         <label>Kullanıcı Adınız (Nickname)</label>
         <input type="text" id="nickname" placeholder="Örn: Alice">
@@ -49,7 +49,7 @@
 <div class="container" id="chat-screen">
     <h2>Güvenli Sohbet Odası</h2>
     <div class="status-bar">
-        <span style="color: #22c55e; font-weight: bold;">● Sunucusuz Güvenli Bağlantı</span>
+        <span>Durum: <span id="status" style="color: #eab308; font-weight: bold;">Bağlanıyor...</span></span>
         <span style="color: #ef4444; font-weight: bold;">⚠️ 60sn SONRA KESİN İMHA</span>
     </div>
     <div id="messages"></div>
@@ -62,10 +62,10 @@
 </div>
 
 <script>
-    let myNick, roomSecret, channel;
+    let myNick, roomSecret, socket;
     const messagesDiv = document.getElementById('messages');
 
-    // Tarayıcının kendi şifreleme motoru (XOR şifreleme - tamamen cihaz içinde çalışır)
+    // Tarayıcı içi şifreleme motoru
     const crypt = (salt, text) => {
         const textToChars = text => text.split('').map(c => c.charCodeAt(0));
         const byteHex = n => ("0" + Number(n).toString(16)).substr(-2);
@@ -91,16 +91,31 @@
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('chat-screen').style.display = 'flex';
 
-        // Tarayıcılar arası doğrudan yerel ağ/sekme iletişim kanalı
-        channel = new BroadcastChannel('secure_local_room_' + roomSecret);
-        
-        channel.onmessage = (event) => {
+        // Küresel halka açık ücretsiz ve reklamsız WebSocket sunucusu üzerinden cihazları eşleştirme
+        socket = new WebSocket('wss://echo.websocket.org');
+
+        socket.onopen = () => {
+            document.getElementById('status').innerText = "Bağlantı Aktif";
+            document.getElementById('status').style.color = "#22c55e";
+        };
+
+        socket.onmessage = (event) => {
             try {
-                const data = event.data;
-                const decryptedContent = decrypt(roomSecret, data.content);
-                displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
-            } catch(e) { // Şifresi yanlış olan bir veri gelirse çözme ve görmezden gel
+                const data = JSON.parse(event.data);
+                // Gelen veri bu odaya mı ait ve şifresi doğru mu kontrol et
+                if (data.room === roomSecret) {
+                    const decryptedContent = decrypt(roomSecret, data.content);
+                    displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
+                }
+            } catch(e) {
+                // Hatalı veya yabancı paketleri yoksay
             }
+        };
+
+        socket.onclose = () => {
+            document.getElementById('status').innerText = "Bağlantı Koptu, Yenileniyor...";
+            document.getElementById('status').style.color = "#ef4444";
+            setTimeout(initializeConnection, 3000); // Otomatik yeniden bağlanma
         };
     }
 
@@ -137,14 +152,13 @@
         messagesDiv.appendChild(msgEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        // 60 Saniyelik Hafızadan Kazıma Sayacı
         const interval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((60000 - (Date.now() - timestamp)) / 1000));
             countdown.innerText = `İmha ediliyor: ${remaining}sn`;
 
             if (remaining <= 0) {
                 clearInterval(interval);
-                msgEl.remove(); // Ekrandan ve RAM'den tamamen sil
+                msgEl.remove();
             }
         }, 500);
     }
@@ -159,7 +173,7 @@
     }
 
     function sendImage(fileInput) {
-        const file = fileInput.files[0];
+        const file = fileInput.files;
         if (!file) return;
 
         const reader = new FileReader();
@@ -174,12 +188,15 @@
         const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
         const timestamp = Date.now();
         
-        // Veriyi göndermeden hemen önce oda şifresi ile yerel olarak kriptola
+        // Veriyi göndermeden önce yerel olarak şifrele
         const encrypted = crypt(roomSecret, content);
-        const packet = { id: msgId, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
+        const packet = { id: msgId, room: roomSecret, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
 
-        // Mesajı kanala üfle ve kendi ekranına yaz
-        channel.postMessage(packet);
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(packet));
+        }
+        
+        // Kendi ekranımıza anında yaz
         displayMessage(msgId, myNick, content, type, timestamp);
     }
 </script>
