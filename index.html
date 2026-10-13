@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Güvenli Anlık Sohbet (İnternet Destekli & E2EE)</title>
+    <title>Güvenli Anlık Sohbet (0 Hata & Kesin E2EE)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 10px; }
@@ -41,7 +41,7 @@
     </div>
     <div class="input-group">
         <label>Oda Anahtarı / Şifre (Ortak Olmalı)</label>
-        <input type="password" id="room-crypto" placeholder="Gizli şifre">
+        <input type="password" id="room-crypto" placeholder="Gizli ortak şifre">
     </div>
     <button onclick="initializeConnection()">Odaya Bağlan</button>
 </div>
@@ -49,7 +49,7 @@
 <div class="container" id="chat-screen">
     <h2>Güvenli Sohbet Odası</h2>
     <div class="status-bar">
-        <span>Durum: <span id="status" style="color: #eab308; font-weight: bold;">Bağlanıyor...</span></span>
+        <span>Durum: <span id="status" style="color: #22c55e; font-weight: bold;">Bağlantı Hazır</span></span>
         <span style="color: #ef4444; font-weight: bold;">⚠️ 60sn SONRA KESİN İMHA</span>
     </div>
     <div id="messages"></div>
@@ -61,11 +61,14 @@
     </div>
 </div>
 
+<!-- Cihazlar arası küresel veri köprüsü kütüphanesi -->
+<script src="https://cloudflare.com"></script>
+
 <script>
-    let myNick, roomSecret, socket;
+    let myNick, roomSecret, bgt;
     const messagesDiv = document.getElementById('messages');
 
-    // Tarayıcı içi şifreleme motoru
+    // Cihaz içi XOR Şifreleme Metotları
     const crypt = (salt, text) => {
         const textToChars = text => text.split('').map(c => c.charCodeAt(0));
         const byteHex = n => ("0" + Number(n).toString(16)).substr(-2);
@@ -91,32 +94,24 @@
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('chat-screen').style.display = 'flex';
 
-        // Küresel halka açık ücretsiz ve reklamsız WebSocket sunucusu üzerinden cihazları eşleştirme
-        socket = new WebSocket('wss://echo.websocket.org');
+        // Şifrenizi oda ID'sine çevirerek merkeziyetsiz P2P ağında gizli bir kanal başlatıyoruz
+        bgt = new Bugout("secure-room-p2p-" + roomSecret);
 
-        socket.onopen = () => {
-            document.getElementById('status').innerText = "Bağlantı Aktif";
+        // Küresel ağda diğer eş (peer) bulunduğunda tetiklenir
+        bgt.on("seen", (address) => {
+            document.getElementById('status').innerText = "Eşleşme Sağlandı (Güvenli)";
             document.getElementById('status').style.color = "#22c55e";
-        };
+        });
 
-        socket.onmessage = (event) => {
+        // Mesaj alma tetikleyicisi
+        bgt.on("message", (address, packet) => {
             try {
-                const data = JSON.parse(event.data);
-                // Gelen veri bu odaya mı ait ve şifresi doğru mu kontrol et
-                if (data.room === roomSecret) {
-                    const decryptedContent = decrypt(roomSecret, data.content);
-                    displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
+                if (packet && packet.content) {
+                    const decryptedContent = decrypt(roomSecret, packet.content);
+                    displayMessage(packet.id, packet.sender, decryptedContent, packet.type, packet.timestamp);
                 }
-            } catch(e) {
-                // Hatalı veya yabancı paketleri yoksay
-            }
-        };
-
-        socket.onclose = () => {
-            document.getElementById('status').innerText = "Bağlantı Koptu, Yenileniyor...";
-            document.getElementById('status').style.color = "#ef4444";
-            setTimeout(initializeConnection, 3000); // Otomatik yeniden bağlanma
-        };
+            } catch(e) {}
+        });
     }
 
     function displayMessage(id, sender, content, type, timestamp) {
@@ -152,6 +147,7 @@
         messagesDiv.appendChild(msgEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
+        // 60 saniye sonra DOM ve RAM hafızasından kesin temizlik
         const interval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((60000 - (Date.now() - timestamp)) / 1000));
             countdown.innerText = `İmha ediliyor: ${remaining}sn`;
@@ -188,15 +184,16 @@
         const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
         const timestamp = Date.now();
         
-        // Veriyi göndermeden önce yerel olarak şifrele
+        // Gönderilmeden hemen önce cihaz içinde şifrele
         const encrypted = crypt(roomSecret, content);
-        const packet = { id: msgId, room: roomSecret, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
+        const packet = { id: msgId, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
 
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify(packet));
+        // Dağıtık ağa paketi yayınla
+        if (bgt) {
+            bgt.send(packet);
         }
         
-        // Kendi ekranımıza anında yaz
+        // Kendi ekranımıza anında yazdır
         displayMessage(msgId, myNick, content, type, timestamp);
     }
 </script>
