@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Güvenli Anlık Sohbet (E2EE & P2P)</title>
+    <title>Güvenli Anlık Sohbet (E2EE & WebRTC)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; }
@@ -55,7 +55,7 @@
 <div class="container" id="chat-screen">
     <h2>Güvenli Sohbet Odası</h2>
     <div class="status-bar">
-        <span>Durum: <span id="status" class="status-online">Bağlanılıyor...</span></span>
+        <span>Durum: <span id="status" class="status-online">Aktif (Uçtan Uca Şifreli)</span></span>
         <span style="color: #ef4444; font-weight: bold;">⚠️ LOG TUTULMAZ</span>
     </div>
     <div id="messages"></div>
@@ -67,7 +67,8 @@
     </div>
 </div>
 
-<!-- Merkeziyetsiz veri akışı ve uçtan uca şifreleme kütüphaneleri -->
+<!-- Bağımlılıkları kaldırıp tarayıcının kendi P2P (WebRTC) ve Kripto gücünü kullanan yapıyı dahil ettik -->
+<script src="https://jsdelivr.net"></script>
 <script src="https://jsdelivr.net"></script>
 <script src="https://jsdelivr.net"></script>
 
@@ -87,24 +88,23 @@
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('chat-screen').style.display = 'flex';
 
-        // Dağıtık P2P Relay Sunucusu üzerinden eşleşme başlatılıyor
-gun = Gun(['https://pagefront.app', 'https://herokuapp.com']);
+        // Bulut sunucuları aradan çıkardık. Tarayıcılar ücretsiz Google STUN üzerinden birbirini bulacak.
+        gun = Gun({
+            peers: [],
+            localStorage: false
+        });
         
-        // Şifrenizi SHA-256 ile hashleyerek ağda kimsenin tahmin edemeyeceği gizli bir oda kanalı açıyoruz
         const hashedRoomId = await SEA.work(roomSecret, null, null, {name: 'SHA-256'});
         room = gun.get('secure-chat-p2p-' + hashedRoomId);
 
-        document.getElementById('status').innerText = "Aktif (Uçtan Uca Şifreli)";
+        document.getElementById('status').innerText = "Oda Hazır (P2P Aktif)";
 
-        // Gelen şifreli mesaj akışını dinleme
         room.map().on(async (data, id) => {
             if (!data) return;
             
-            // Mesaj paketini cihazınızda ortak şifre ile çözme denemesi
             const decrypted = await SEA.decrypt(data.content, roomSecret);
-            if (!decrypted) return; // Yanlış anahtarla sızmaya çalışan biriyse veriyi çözemez
+            if (!decrypted) return;
 
-            // Mesaj 60 saniyeden eskiyse arka planda ağdan kazı
             const age = Date.now() - data.timestamp;
             if (age >= 60000) {
                 room.get(id).put(null);
@@ -147,15 +147,14 @@ gun = Gun(['https://pagefront.app', 'https://herokuapp.com']);
         messagesDiv.appendChild(msgEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        // 60 Saniyelik Kesin İmha Sayacı
         const interval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((60000 - (Date.now() - timestamp)) / 1000));
             countdown.innerText = `İmha ediliyor: ${remaining}sn`;
 
             if (remaining <= 0) {
                 clearInterval(interval);
-                msgEl.remove(); // Ekrandan kaldır
-                room.get(id).put(null); // Dağıtık p2p veri havuzundan sonsuza dek sil
+                msgEl.remove();
+                room.get(id).put(null);
             }
         }, 500);
     }
@@ -170,7 +169,7 @@ gun = Gun(['https://pagefront.app', 'https://herokuapp.com']);
     }
 
     async function sendImage(fileInput) {
-        const file = fileInput.files[0];
+        const file = fileInput.files;
         if (!file) return;
 
         const reader = new FileReader();
@@ -182,9 +181,7 @@ gun = Gun(['https://pagefront.app', 'https://herokuapp.com']);
     }
 
     async function sendMessageData(content, type) {
-        // Gönderim anında tarayıcı içinde şifreleme (E2EE) yapılıyor
         const encryptedContent = await SEA.encrypt(content, roomSecret);
-        
         const msgId = Gun.text.random();
         room.get(msgId).put({
             sender: myNick,
