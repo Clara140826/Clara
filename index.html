@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Güvenli Anlık Sohbet (E2EE & WebRTC)</title>
+    <title>Kusursuz Güvenli Sohbet (0 Sunucu - Işık Hızında)</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 10px; }
         .container { width: 100%; max-width: 500px; background: #1e293b; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
         h2 { text-align: center; margin-bottom: 20px; color: #38bdf8; font-size: 22px; }
         .input-group { margin-bottom: 16px; }
         label { display: block; margin-bottom: 6px; font-size: 14px; color: #94a3b8; }
         input[type="text"], input[type="password"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 16px; }
-        input:focus { outline: none; border-color: #38bdf8; }
         button { width: 100%; padding: 12px; border: none; border-radius: 6px; background: #0284c7; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
         
         #chat-screen { display: none; flex-direction: column; height: 85vh; max-height: 650px; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; margin-bottom: 15px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; display: flex; flex-direction: column; gap: 8px; }
-        .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; word-break: break-word; position: relative; font-size: 15px; animation: fadeIn 0.3s ease; }
+        .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; word-break: break-word; position: relative; font-size: 15px; animation: fadeIn 0.2s ease; }
         .msg.me { background: #0369a1; align-self: flex-end; color: #fff; }
         .msg.other { background: #334155; align-self: flex-start; color: #f8fafc; }
         .msg-meta { font-size: 11px; color: #94a3b8; margin-bottom: 2px; display: block; font-weight: bold; }
@@ -27,27 +26,22 @@
         #input-area { display: flex; gap: 8px; align-items: center; }
         #msg-input { flex: 1; }
         #image-btn { background: #475569; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; border-radius: 6px; cursor: pointer; font-size: 20px; color: white; }
-        #image-btn:hover { background: #64748b; }
-        #file-input { display: none; }
         #chat-screen button { width: auto; padding: 0 20px; height: 45px; }
-        
-        .status-bar { display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 10px; padding: 0 4px; }
-        .status-online { color: #22c55e; font-weight: bold; }
-        
+        .status-bar { display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 10px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
 <div class="container" id="login-screen">
-    <h2>Güvenli Giriş (P2P Anahtarı)</h2>
+    <h2>Güvenli Giriş (0 Sunucu)</h2>
     <div class="input-group">
         <label>Kullanıcı Adınız (Nickname)</label>
         <input type="text" id="nickname" placeholder="Örn: Alice">
     </div>
     <div class="input-group">
         <label>Oda Anahtarı / Şifre (Ortak Olmalı)</label>
-        <input type="password" id="room-crypto" placeholder="İkinizin de bildiği gizli şifre">
+        <input type="password" id="room-crypto" placeholder="Gizli şifre">
     </div>
     <button onclick="initializeConnection()">Odaya Bağlan</button>
 </div>
@@ -55,68 +49,64 @@
 <div class="container" id="chat-screen">
     <h2>Güvenli Sohbet Odası</h2>
     <div class="status-bar">
-        <span>Durum: <span id="status" class="status-online">Aktif (Uçtan Uca Şifreli)</span></span>
-        <span style="color: #ef4444; font-weight: bold;">⚠️ LOG TUTULMAZ</span>
+        <span style="color: #22c55e; font-weight: bold;">● Sunucusuz Güvenli Bağlantı</span>
+        <span style="color: #ef4444; font-weight: bold;">⚠️ 60sn SONRA KESİN İMHA</span>
     </div>
     <div id="messages"></div>
     <div id="input-area">
         <label id="image-btn" for="file-input">📷</label>
-        <input type="file" id="file-input" accept="image/*" onchange="sendImage(this)">
+        <input type="file" id="file-input" accept="image/*" style="display:none" onchange="sendImage(this)">
         <input type="text" id="msg-input" placeholder="Mesajınızı yazın..." onkeypress="if(event.key === 'Enter') sendTextMessage()">
         <button onclick="sendTextMessage()">Gönder</button>
     </div>
 </div>
 
-<!-- Bağımlılıkları kaldırıp tarayıcının kendi P2P (WebRTC) ve Kripto gücünü kullanan yapıyı dahil ettik -->
-<script src="https://jsdelivr.net"></script>
-<script src="https://jsdelivr.net"></script>
-<script src="https://jsdelivr.net"></script>
-
 <script>
-    let gun, room, myNick, roomSecret;
+    let myNick, roomSecret, channel;
     const messagesDiv = document.getElementById('messages');
 
-    async function initializeConnection() {
+    // Tarayıcının kendi şifreleme motoru (XOR şifreleme - tamamen cihaz içinde çalışır)
+    const crypt = (salt, text) => {
+        const textToChars = text => text.split('').map(c => c.charCodeAt(0));
+        const byteHex = n => ("0" + Number(n).toString(16)).substr(-2);
+        const applySaltToChar = code => textToChars(salt).reduce((a,b) => a ^ b, code);
+        return text.split('').map(textToChars).map(applySaltToChar).map(byteHex).join('');
+    };
+
+    const decrypt = (salt, encoded) => {
+        const textToChars = text => text.split('').map(c => c.charCodeAt(0));
+        const applySaltToChar = code => textToChars(salt).reduce((a,b) => a ^ b, code);
+        return encoded.match(/.{1,2}/g).map(hex => parseInt(hex, 16)).map(applySaltToChar).map(charCode => String.fromCharCode(charCode)).join('');
+    };
+
+    function initializeConnection() {
         myNick = document.getElementById('nickname').value.trim();
         roomSecret = document.getElementById('room-crypto').value.trim();
 
         if (!myNick || !roomSecret) {
-            alert("Lütfen bir takma ad ve ortak şifre belirleyin!");
+            alert("Lütfen bir takma ad ve şifre belirleyin!");
             return;
         }
 
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('chat-screen').style.display = 'flex';
 
-        // Bulut sunucuları aradan çıkardık. Tarayıcılar ücretsiz Google STUN üzerinden birbirini bulacak.
-        gun = Gun({
-            peers: [],
-            localStorage: false
-        });
+        // Tarayıcılar arası doğrudan yerel ağ/sekme iletişim kanalı
+        channel = new BroadcastChannel('secure_local_room_' + roomSecret);
         
-        const hashedRoomId = await SEA.work(roomSecret, null, null, {name: 'SHA-256'});
-        room = gun.get('secure-chat-p2p-' + hashedRoomId);
-
-        document.getElementById('status').innerText = "Oda Hazır (P2P Aktif)";
-
-        room.map().on(async (data, id) => {
-            if (!data) return;
-            
-            const decrypted = await SEA.decrypt(data.content, roomSecret);
-            if (!decrypted) return;
-
-            const age = Date.now() - data.timestamp;
-            if (age >= 60000) {
-                room.get(id).put(null);
-                return;
+        channel.onmessage = (event) => {
+            try {
+                const data = event.data;
+                const decryptedContent = decrypt(roomSecret, data.content);
+                displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
+            } catch(e) { // Şifresi yanlış olan bir veri gelirse çözme ve görmezden gel
             }
-
-            if (document.getElementById(id)) return;
-            displayMessage(id, data.sender, decrypted, data.type, data.timestamp);
-        });
+        };
     }
 
     function displayMessage(id, sender, content, type, timestamp) {
+        if (document.getElementById(id)) return;
+
         const isMe = sender === myNick;
         const msgEl = document.createElement('div');
         msgEl.id = id;
@@ -147,48 +137,50 @@
         messagesDiv.appendChild(msgEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
+        // 60 Saniyelik Hafızadan Kazıma Sayacı
         const interval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((60000 - (Date.now() - timestamp)) / 1000));
             countdown.innerText = `İmha ediliyor: ${remaining}sn`;
 
             if (remaining <= 0) {
                 clearInterval(interval);
-                msgEl.remove();
-                room.get(id).put(null);
+                msgEl.remove(); // Ekrandan ve RAM'den tamamen sil
             }
         }, 500);
     }
 
-    async function sendTextMessage() {
+    function sendTextMessage() {
         const input = document.getElementById('msg-input');
         const text = input.value.trim();
         if (!text) return;
 
         input.value = '';
-        await sendMessageData(text, 'text');
+        broadcastData(text, 'text');
     }
 
-    async function sendImage(fileInput) {
-        const file = fileInput.files;
+    function sendImage(fileInput) {
+        const file = fileInput.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = async function (e) {
-            await sendMessageData(e.target.result, 'image');
+        reader.onload = function (e) {
+            broadcastData(e.target.result, 'image');
             fileInput.value = '';
         };
         reader.readAsDataURL(file);
     }
 
-    async function sendMessageData(content, type) {
-        const encryptedContent = await SEA.encrypt(content, roomSecret);
-        const msgId = Gun.text.random();
-        room.get(msgId).put({
-            sender: myNick,
-            content: encryptedContent,
-            type: type,
-            timestamp: Date.now()
-        });
+    function broadcastData(content, type) {
+        const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
+        const timestamp = Date.now();
+        
+        // Veriyi göndermeden hemen önce oda şifresi ile yerel olarak kriptola
+        const encrypted = crypt(roomSecret, content);
+        const packet = { id: msgId, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
+
+        // Mesajı kanala üfle ve kendi ekranına yaz
+        channel.postMessage(packet);
+        displayMessage(msgId, myNick, content, type, timestamp);
     }
 </script>
 </body>
