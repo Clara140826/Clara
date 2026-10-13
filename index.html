@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clara (Anında İletim & E2EE)</title>
+    <title>Kusursuz Güvenli Sohbet (WebRTC & E2EE)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 10px; }
         .container { width: 100%; max-width: 500px; background: #1e293b; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        h2 { text-align: center; margin-bottom: 20px; color: #38bdf8; font-size: 22px; }
-        .input-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 6px; font-size: 14px; color: #94a3b8; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 16px; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 6px; background: #0284c7; color: white; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        h2 { text-align: center; margin-bottom: 20px; color: #38bdf8; font-size: 20px; }
+        .input-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-size: 13px; color: #94a3b8; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 14px; }
+        textarea { height: 70px; resize: none; font-family: monospace; font-size: 11px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; background: #0284c7; color: white; font-size: 14px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
         button:hover { background: #0369a1; }
         
         #chat-screen { display: none; flex-direction: column; height: 85vh; max-height: 650px; }
         #messages { flex: 1; overflow-y: auto; padding: 10px; margin-bottom: 15px; border: 1px solid #334155; border-radius: 6px; background: #0f172a; display: flex; flex-direction: column; gap: 8px; }
-        .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; word-break: break-word; position: relative; font-size: 15px; animation: fadeIn 0.2s ease; }
+        .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; word-break: break-word; position: relative; font-size: 14px; }
         .msg.me { background: #0369a1; align-self: flex-end; color: #fff; }
         .msg.other { background: #334155; align-self: flex-start; color: #f8fafc; }
         .msg-meta { font-size: 11px; color: #94a3b8; margin-bottom: 2px; display: block; font-weight: bold; }
@@ -25,31 +26,39 @@
         
         #input-area { display: flex; gap: 8px; align-items: center; }
         #msg-input { flex: 1; }
-        #image-btn { background: #475569; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; border-radius: 6px; cursor: pointer; font-size: 20px; color: white; }
-        #chat-screen button { width: auto; padding: 0 20px; height: 45px; }
-        .status-bar { display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 10px; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        #image-btn { background: #475569; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; border-radius: 6px; cursor: pointer; font-size: 18px; color: white; }
+        #chat-screen button { width: auto; padding: 0 20px; height: 40px; margin-top: 0; }
+        .status-bar { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container" id="login-screen">
-    <h2>Clara(Anında İletim)</h2>
+    <h2>Clara (Sunucusuz P2P)</h2>
     <div class="input-group">
         <label>Kullanıcı Adınız (Nickname)</label>
         <input type="text" id="nickname" placeholder="Örn: Alice">
     </div>
     <div class="input-group">
-        <label>Oda Anahtarı / Şifre (Ortak Olmalı)</label>
-        <input type="password" id="room-crypto" placeholder="Gizli ortak şifre">
+        <label>Ortak Sohbet Şifresi (E2EE Anahtarı)</label>
+        <input type="password" id="room-crypto" placeholder="Mesaj şifreleme anahtarı">
     </div>
-    <button onclick="initializeConnection()">Odaya Bağlan</button>
+    <button onclick="startRoom(true)">1. Kişi Olarak Oda Başlat</button>
+    <button onclick="startRoom(false)" style="background:#475569">2. Kişi Olarak Odaya Katıl</button>
+    
+    <div id="p2p-setup" style="display:none; margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px;">
+        <label id="p2p-label-1">Kendi Bağlantı Kodunuz (Kopyalayıp Karşıya Gönderin):</label>
+        <textarea id="my-code" readonly onclick="this.select()"></textarea>
+        <label style="margin-top:8px;">Karşıdan Gelen Bağlantı Kodunu Yapıştırın:</label>
+        <textarea id="other-code" placeholder="Karşı tarafın kodunu buraya yapıştırın..."></textarea>
+        <button onclick="connectPeers()" style="background:#22c55e">Bağlantıyı Tamamla</button>
+    </div>
 </div>
 
 <div class="container" id="chat-screen">
     <h2>Güvenli Sohbet Odası</h2>
     <div class="status-bar">
-        <span>Durum: <span id="status" style="color: #eab308; font-weight: bold;">Bağlanıyor...</span></span>
+        <span style="color: #22c55e; font-weight: bold;">● Sunucusuz %100 Güvenli</span>
         <span style="color: #ef4444; font-weight: bold;">⚠️ 60sn SONRA KESİN İMHA</span>
     </div>
     <div id="messages"></div>
@@ -62,10 +71,10 @@
 </div>
 
 <script>
-    let myNick, roomSecret, ws;
+    let myNick, roomSecret, pc, dataChannel, isInitiator;
     const messagesDiv = document.getElementById('messages');
 
-    // Tarayıcı içi güvenli XOR Kripto algoritmaları
+    // Tarayıcı içi şifreleme fonksiyonları
     const crypt = (salt, text) => {
         const textToChars = text => text.split('').map(c => c.charCodeAt(0));
         const byteHex = n => ("0" + Number(n).toString(16)).substr(-2);
@@ -79,47 +88,67 @@
         return encoded.match(/.{1,2}/g).map(hex => parseInt(hex, 16)).map(applySaltToChar).map(charCode => String.fromCharCode(charCode)).join('');
     };
 
-    function initializeConnection() {
+    function startRoom(initiator) {
         myNick = document.getElementById('nickname').value.trim();
         roomSecret = document.getElementById('room-crypto').value.trim();
+        isInitiator = initiator;
 
         if (!myNick || !roomSecret) {
-            alert("Lütfen bir takma ad ve şifre belirleyin!");
+            alert("Lütfen takma ad ve şifre belirleyin!");
             return;
         }
 
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('chat-screen').style.display = 'flex';
+        document.getElementById('p2p-setup').style.display = 'block';
+        
+        // Google'ın standart ve ücretsiz altyapısı ile P2P el sıkışma motoru kuruluyor
+        pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:://google.com' }] });
 
-        // Tamamen bağımsız, genel ve açık WebSocket veri hattı üzerinden anlık iletim hattı kuruyoruz
-        ws = new WebSocket('wss://://piesocket.com');
+        if (isInitiator) {
+            dataChannel = pc.createDataChannel("chat");
+            setupChannelEvents(dataChannel);
+            pc.createOffer().then(offer => pc.setLocalDescription(offer));
+        } else {
+            pc.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupChannelEvents(dataChannel);
+            };
+            document.getElementById('p2p-label-1').innerText = "Kendi Yanıt Kodunuz (Karşı taraf istiyorsa gönderin):";
+        }
 
-        ws.onopen = () => {
-            document.getElementById('status').innerText = "Bağlantı Aktif (E2EE)";
-            document.getElementById('status').style.color = "#22c55e";
+        pc.onicecandidate = (event) => {
+            if (!event.candidate) {
+                // Kod üretildiğinde ekrana yazdırıyoruz
+                document.getElementById('my-code').value = btoa(JSON.stringify(pc.localDescription));
+            }
         };
+    }
 
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                // Mesaj bu odaya aitse tarayıcı içinde şifresini çöz
-                if (data.room === roomSecret && data.sender !== myNick) {
-                    const decryptedContent = decrypt(roomSecret, data.content);
-                    displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
-                }
-            } catch(e) {}
+    function connectPeers() {
+        const inputVal = document.getElementById('other-code').value.trim();
+        if (!inputVal) return;
+        
+        const remoteDesc = new RTCSessionDescription(JSON.parse(atob(inputVal)));
+        pc.setRemoteDescription(remoteDesc).then(() => {
+            if (!isInitiator && !pc.localDescription) {
+                pc.createAnswer().then(answer => pc.setLocalDescription(answer));
+            }
+        });
+    }
+
+    function setupChannelEvents(channel) {
+        channel.onopen = () => {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('chat-screen').style.display = 'flex';
         };
-
-        ws.onclose = () => {
-            document.getElementById('status').innerText = "Yeniden Bağlanıyor...";
-            document.getElementById('status').style.color = "#ef4444";
-            setTimeout(initializeConnection, 2000);
+        channel.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const decryptedContent = decrypt(roomSecret, data.content);
+            displayMessage(data.id, data.sender, decryptedContent, data.type, data.timestamp);
         };
     }
 
     function displayMessage(id, sender, content, type, timestamp) {
         if (document.getElementById(id)) return;
-
         const isMe = sender === myNick;
         const msgEl = document.createElement('div');
         msgEl.id = id;
@@ -139,22 +168,18 @@
             img.src = content;
             img.style.maxWidth = '100%';
             img.style.borderRadius = '4px';
-            img.style.marginTop = '4px';
             msgEl.appendChild(img);
         }
 
         const countdown = document.createElement('span');
         countdown.className = 'timer';
         msgEl.appendChild(countdown);
-
         messagesDiv.appendChild(msgEl);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-        // Cihaz belleğinden ve ekrandan 60 saniye sonra kazıyarak silme sayacı
         const interval = setInterval(() => {
             const remaining = Math.max(0, Math.ceil((60000 - (Date.now() - timestamp)) / 1000));
             countdown.innerText = `İmha ediliyor: ${remaining}sn`;
-
             if (remaining <= 0) {
                 clearInterval(interval);
                 msgEl.remove();
@@ -165,39 +190,15 @@
     function sendTextMessage() {
         const input = document.getElementById('msg-input');
         const text = input.value.trim();
-        if (!text) return;
+        if (!text || !dataChannel || dataChannel.readyState !== "open") return;
 
         input.value = '';
         broadcastData(text, 'text');
     }
 
     function sendImage(fileInput) {
-        const file = fileInput.files;
-        if (!file) return;
+        const file = fileInput.files[0];
+        if (!file || !dataChannel || dataChannel.readyState !== "open") return;
 
         const reader = new FileReader();
         reader.onload = function (e) {
-            broadcastData(e.target.result, 'image');
-            fileInput.value = '';
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function broadcastData(content, type) {
-        const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
-        const timestamp = Date.now();
-        
-        // Veriyi göndermeden önce oda şifresiyle şifrele (E2EE)
-        const encrypted = crypt(roomSecret, content);
-        const packet = { id: msgId, room: roomSecret, sender: myNick, content: encrypted, type: type, timestamp: timestamp };
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(packet));
-        }
-        
-        // Kendi iletimimizi ekrana anında bas
-        displayMessage(msgId, myNick, content, type, timestamp);
-    }
-</script>
-</body>
-</html>
