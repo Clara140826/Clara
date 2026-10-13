@@ -88,7 +88,7 @@
         document.getElementById('chat-screen').style.display = 'flex';
 
         // Dağıtık P2P Relay Sunucusu üzerinden eşleşme başlatılıyor
-        gun = Gun(['https://herokuapp.com']);
+gun = Gun(['https://pagefront.app', 'https://herokuapp.com']);
         
         // Şifrenizi SHA-256 ile hashleyerek ağda kimsenin tahmin edemeyeceği gizli bir oda kanalı açıyoruz
         const hashedRoomId = await SEA.work(roomSecret, null, null, {name: 'SHA-256'});
